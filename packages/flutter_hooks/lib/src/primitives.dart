@@ -236,6 +236,72 @@ class _EffectHookState extends HookState<void, _EffectHook> {
   bool get debugSkipValue => true;
 }
 
+/// Extracts non-reactive logic into a function that reads the latest state.
+///
+/// Use this hook when you need a callback inside [useEffect] that accesses
+/// the latest values without adding them to the effect's dependencies.
+/// The returned function always invokes the latest [callback].
+///
+/// ```dart
+/// class Page extends HookWidget {
+///   final String url;
+///   final int itemCount;
+///
+///   @override
+///   Widget build(BuildContext context) {
+///     final onVisit = useEffectEvent((visitedUrl) {
+///       logVisit(visitedUrl, itemCount);
+///     });
+///
+///     useEffect(() {
+///       onVisit(url);
+///       return null;
+///     }, [url]); // Effect re-runs when url changes, not itemCount
+///
+///     return Text(url);
+///   }
+/// }
+/// ```
+///
+/// ## Caveats
+///
+///  * Only call effect events from inside [useEffect].
+///  * Never pass effect events to child widgets or other hooks.
+///  * Never include effect events in [useEffect]'s `keys`. The returned
+///    function changes on every build, which would cause the effect to re-run
+///    unnecessarily.
+///  * Do not use this hook to avoid specifying reactive values in `keys`.
+///    Values that should trigger the effect to re-run must still be included.
+///    Only extract logic that reads non-reactive values.
+///
+/// See also:
+///
+///  * [useEffect], for side-effects that may use effect events.
+T useEffectEvent<T extends Function>(T callback) {
+  return use<T>(_EffectEventHook<T>(callback));
+}
+
+class _EffectEventHook<T extends Function> extends Hook<T> {
+  const _EffectEventHook(this.event);
+
+  final T event;
+
+  @override
+  _EffectEventHookState<T> createState() => _EffectEventHookState<T>();
+}
+
+class _EffectEventHookState<T extends Function>
+    extends HookState<T, _EffectEventHook<T>> {
+  @override
+  T build(BuildContext context) => hook.event;
+
+  @override
+  String get debugLabel => 'useEffectEvent';
+
+  @override
+  bool get debugSkipValue => true;
+}
+
 /// Creates a variable and subscribes to it.
 ///
 /// Whenever [ValueNotifier.value] updates, it will mark the caller [HookWidget]
