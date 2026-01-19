@@ -85,10 +85,59 @@ void main() {
       expect(event(), 'World!');
     });
 
-    // This test documents the current behavior: effect events do NOT have
-    // stable referential identity across builds. This differs from React's
-    // useEffectEvent which returns a stable reference. As a consequence, effect
-    // events should never be included in useEffect's keys.
+    /// Simulates the example use case: effect depends on `url` but reads
+    /// `itemCount` via useEffectEvent without adding it to dependencies.
+    testWidgets(
+        'effect re-runs only when keys change, not when captured values change',
+        (tester) async {
+      final loggedVisits = <String>[];
+      var effectRunCount = 0;
+
+      await tester.pumpWidget(
+        Page(
+          url: '/home',
+          itemCount: 5,
+          onVisit: loggedVisits.add,
+          onEffect: () => effectRunCount++,
+        ),
+      );
+
+      expect(effectRunCount, 1);
+      expect(loggedVisits, ['/home:5']);
+
+      // Change itemCount only
+      await tester.pumpWidget(
+        Page(
+          url: '/home',
+          itemCount: 10,
+          onVisit: loggedVisits.add,
+          onEffect: () => effectRunCount++,
+        ),
+      );
+
+      // Should NOT have re-run effect, no new log
+      expect(effectRunCount, 1);
+      expect(loggedVisits, ['/home:5']);
+
+      // Change url
+      await tester.pumpWidget(
+        Page(
+          url: '/about',
+          itemCount: 10,
+          onVisit: loggedVisits.add,
+          onEffect: () => effectRunCount++,
+        ),
+      );
+
+      // Should have re-ran effect, new log with latest itemCount
+      expect(effectRunCount, 2);
+      expect(loggedVisits, ['/home:5', '/about:10']);
+    });
+
+    /// This test documents the current behavior: effect events do NOT have
+    /// stable referential identity across builds. This differs from React's
+    /// useEffectEvent which returns a stable reference. As a consequence,
+    /// effect events should never be included in useEffect's keys.
     testWidgets('returns different identity on each build', (tester) async {
       final identities = <Function>[];
 
@@ -134,4 +183,35 @@ void main() {
       );
     });
   });
+}
+
+class Page extends HookWidget {
+  const Page({
+    super.key,
+    required this.url,
+    required this.itemCount,
+    required this.onVisit,
+    required this.onEffect,
+  });
+
+  final String url;
+  final int itemCount;
+  final void Function(String) onVisit;
+  final void Function() onEffect;
+
+  @override
+  Widget build(BuildContext context) {
+    // ignore: avoid_types_on_closure_parameters
+    final logVisit = useEffectEvent((String visitedUrl) {
+      onVisit('$visitedUrl:$itemCount');
+    });
+
+    useEffect(() {
+      onEffect();
+      logVisit(url);
+      return null;
+    }, [url]);
+
+    return const SizedBox();
+  }
 }
