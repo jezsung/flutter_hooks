@@ -477,8 +477,7 @@ Type mismatch between hooks:
           .._hook = hook
           ..didUpdateHook(previousHook);
       } else {
-        _needDispose ??= LinkedList();
-        _needDispose!.add(_Entry(_currentHookState!.value));
+        _currentHookState!.value.dispose();
         _currentHookState!.value = _createHookState<R>(hook);
       }
     }
