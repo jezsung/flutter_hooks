@@ -376,6 +376,33 @@ void main() {
     expect(tester.takeException(), isA<Exception>());
   });
 
+  testWidgets('errors in dispose are handled on unmount', (tester) async {
+    final callOrder = <String>[];
+
+    await tester.pumpWidget(HookBuilder(builder: (context) {
+      useEffect(() {
+        callOrder.add('effect');
+        return () {
+          callOrder.add('dispose');
+          throw Exception();
+        };
+      }, const []);
+
+      return Container();
+    }));
+
+    expect(callOrder, ['effect']);
+    expect(tester.takeException(), isNull);
+    callOrder.clear();
+
+    // Unmount
+    await tester.pumpWidget(Container());
+
+    expect(callOrder, ['dispose']);
+    expect(tester.takeException(), isA<Exception>());
+    callOrder.clear();
+  });
+
   group('useEffect execution order', () {
     testWidgets('dispose runs before effect when keys change', (tester) async {
       // Regression test for https://github.com/rrousselGit/flutter_hooks/issues/335
