@@ -345,6 +345,37 @@ void main() {
     verifyNoMoreInteractions(effect);
   });
 
+  testWidgets('errors in dispose are handled when keys change', (tester) async {
+    final callOrder = <String>[];
+
+    Widget builder(String dep) {
+      return HookBuilder(builder: (context) {
+        useEffect(() {
+          callOrder.add('effect:$dep');
+          return () {
+            callOrder.add('dispose:$dep');
+            if (dep == 'foo') {
+              throw Exception();
+            }
+          };
+        }, [dep]);
+        return Container();
+      });
+    }
+
+    await tester.pumpWidget(builder('foo'));
+
+    expect(callOrder, ['effect:foo']);
+    expect(tester.takeException(), isNull);
+    callOrder.clear();
+
+    // Change dependency
+    await tester.pumpWidget(builder('bar'));
+
+    expect(callOrder, ['dispose:foo', 'effect:bar']);
+    expect(tester.takeException(), isA<Exception>());
+  });
+
   group('useEffect execution order', () {
     testWidgets('dispose runs before effect when keys change', (tester) async {
       // Regression test for https://github.com/rrousselGit/flutter_hooks/issues/335
